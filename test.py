@@ -9,14 +9,16 @@ class Logger:
     def print(self):
         print(self.output)
 
-import inquarting
+def runTestsFor(dictinfo):
+    for name in dictinfo:
+        if name.startswith("test_") and callable(dictinfo[name]):
+            logger = Logger();
+            print(f"Running {name}...")
+            success = dictinfo[name](logger)
+            if not success:
+                print(f"\033[91m{name} FAILED\033[0m")
+                print(name + " log:")
+                logger.print()
 
-for name in inquarting.__dict__:
-    if name.startswith("test_") and callable(inquarting.__dict__[name]):
-        logger = Logger();
-        print(f"Running {name}...")
-        success = inquarting.__dict__[name](logger)
-        if not success:
-            print(f"\033[91m{name} FAILED\033[0m")
-            print(name + " log:")
-            logger.print()
+import inquarting
+runTestsFor(inquarting.__dict__)
