@@ -9,13 +9,17 @@ def create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio=0.01):
     # Function to create the initial alloy mixture based on specified ratios
     if not np.isclose(gold_ratio + silver_ratio + impurity_ratio, 1.0):  # Check if ratios sum to 1
         raise ValueError("The sum of the ratios must be 1.")  # Raise an error if ratios are invalid
+
     total_elements = np.prod(shape)  # Calculate total number of elements in the array
+
     num_gold = int(total_elements * gold_ratio)  # Calculate number of gold elements based on ratio
     num_silver = int(total_elements * silver_ratio)  # Calculate number of silver elements based on ratio
     num_impurity = total_elements - num_gold - num_silver  # Calculate number of impurity elements
     elements = np.array([MATERIAL_GOLD] * num_gold + [MATERIAL_SILVER] * num_silver + [MATERIAL_IMPURITY] * num_impurity)  # Create array with correct proportions
     np.random.shuffle(elements)  # Shuffle the array to randomize positions of elements
+
     alloy_mixture = elements.reshape(shape)  # Reshape the array to the desired shape
+
     return alloy_mixture  # Return the created alloy mixture
 
 def simulate_nitric_acid(alloy):
@@ -38,8 +42,10 @@ def simulate_nitric_acid(alloy):
 
     while queue:  # Continue while queue is not empty
         x, y, z = queue.popleft()  # Get position from the front of the queue
+
         if alloy[x, y, z] == MATERIAL_SILVER:  # If position contains silver
             alloy[x, y, z] = 2  # Mark the silver as dissolved (2 represents dissolved silver)
+
         for dx, dy, dz in directions:  # Iterate over possible directions
             nx, ny, nz = x + dx, y + dy, z + dz  # Calculate new position in the direction
             if 0 <= nx < shape[0] and 0 <= ny < shape[1] and 0 <= nz < shape[2]:
