@@ -96,6 +96,22 @@ if __name__ == "__main__":
 
 ########### Tests
 
+def test_alloy_generation_accurate_probs(log):
+    alloy, _, _ = create_alloy_array((50, 50, 50), 0.6, 0.35, 0.05)
+    log.write(alloy)
+
+    portion_gold     = np.sum(alloy == MATERIAL_GOLD    ) / alloy.size
+    portion_silver   = np.sum(alloy == MATERIAL_SILVER  ) / alloy.size
+    portion_impurity = np.sum(alloy == MATERIAL_IMPURITY) / alloy.size
+
+    log.write(f"gold actual: {portion_gold} | expected: {0.6}")
+    log.write(f"silver actual: {portion_silver} | expected: {0.6}")
+    log.write(f"impurity actual: {portion_impurity} | expected: {0.6}")
+
+    return np.isclose(portion_gold, 0.6, atol=0.05) \
+       and np.isclose(portion_silver, 0.35, atol=0.05) \
+       and np.isclose(portion_impurity, 0.05, atol=0.02)
+
 def test_generate_boundraries(log):
     alloy = np.array([
         [[ 0, 1, -1],
