@@ -4,6 +4,7 @@ from collections import deque  # Importing deque for efficient queue operations
 MATERIAL_SILVER = 0
 MATERIAL_GOLD = 1
 MATERIAL_IMPURITY = -1
+MATERIAL_EMPTY = -2
 
 def create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio=0.01):
     # Function to create the initial alloy mixture based on specified ratios
@@ -20,7 +21,18 @@ def create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio=0.01):
 
     alloy_mixture = elements.reshape(shape)  # Reshape the array to the desired shape
 
-    return alloy_mixture  # Return the created alloy mixture
+    return alloy_mixture, np.zeros(shape), np.zeros(shape)  # Return the created alloy mixture
+
+def generate_boundraries(alloy, acid_content):
+    if alloy.shape != acid_content.shape:
+        raise ValueError("simulation variables should be the same shape")
+    b_alloy = np.full([d+2 for d in alloy.shape], MATERIAL_EMPTY)
+    b_alloy[1:-1, 1:-1, 1:-1] = alloy
+    b_acid = np.ones([d+2 for d in acid_content.shape])
+    b_acid[1:-1, 1:-1, 1:-1] = acid_content
+
+    return b_alloy, b_acid
+
 
 def simulate_nitric_acid(alloy):
     # Function to simulate nitric acid dissolving silver in the alloy
@@ -57,24 +69,117 @@ def simulate_nitric_acid(alloy):
 
     return alloy  # Return the alloy after simulation
 
-# Define the shape of the array
-shape = (20, 20, 20)
+if __name__ == "__main__":
+    # Define the shape of the array
+    shape = (20, 20, 20)
 
-# Define the gold ratios to test, keeping 1% impurity and adjusting silver
-gold_ratios = [0.10, 0.25, 0.50, 0.75, 0.90]
-impurity_ratio = 0.01  # Impurity ratio is fixed at 1%
+    # Define the gold ratios to test, keeping 1% impurity and adjusting silver
+    gold_ratios = [0.10, 0.25, 0.50, 0.75, 0.90]
+    impurity_ratio = 0.01  # Impurity ratio is fixed at 1%
 
-# Test different ratios
-for gold_ratio in gold_ratios:  # Loop through each gold ratio
-    silver_ratio = 1 - gold_ratio - impurity_ratio  # Calculate silver ratio based on gold and impurity
-    alloy_mixture = create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio)  # Create alloy mixture
-    dissolved_alloy = simulate_nitric_acid(alloy_mixture.copy())  # Simulate nitric acid dissolution
-    
-    # Print initial and dissolved alloy mixtures for each ratio
-    print(f"Initial Alloy Mixture (1 for Gold, 0 for Silver, -1 for Impurity) with ratios {gold_ratio}, {silver_ratio}, {impurity_ratio}:")
-    print(alloy_mixture)
-    print()
-    
-    print(f"Dissolved Alloy Mixture (1 for Gold, 2 for Dissolved Silver, -1 for Impurity) with ratios {gold_ratio}, {silver_ratio}, {impurity_ratio}:")
-    print(dissolved_alloy)
-    print()  # Add a newline for readability between different ratio outputs
+    # Test different ratios
+    for gold_ratio in gold_ratios:  # Loop through each gold ratio
+        silver_ratio = 1 - gold_ratio - impurity_ratio  # Calculate silver ratio based on gold and impurity
+        alloy_mixture, dissolusion, acid_content = create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio)  # Create alloy mixture
+        dissolved_alloy = simulate_nitric_acid(alloy_mixture.copy())  # Simulate nitric acid dissolution
+        
+        # Print initial and dissolved alloy mixtures for each ratio
+        print(f"Initial Alloy Mixture (1 for Gold, 0 for Silver, -1 for Impurity) with ratios {gold_ratio}, {silver_ratio}, {impurity_ratio}:")
+        print(alloy_mixture)
+        print()
+        
+        print(f"Dissolved Alloy Mixture (1 for Gold, 2 for Dissolved Silver, -1 for Impurity) with ratios {gold_ratio}, {silver_ratio}, {impurity_ratio}:")
+        print(dissolved_alloy)
+        print()  # Add a newline for readability between different ratio outputs
+
+
+
+########### Tests
+
+def test_generate_boundraries(log):
+    alloy = np.array([
+        [[ 0, 1, -1],
+         [-1, 0, -1],
+         [ 0, 1,  1]],
+        [[ 0, 1, -1],
+         [-1, 0, -1],
+         [ 0, 1,  1]],
+        [[ 0, 1, -1],
+         [-1, 0, -1],
+         [ 0, 1,  1]],
+    ])
+    acid = np.array([
+        [[1.0, 1.0, 1.0],
+         [1.0, 1.0, 0.5],
+         [1.0, 1.0, 1.0]],
+        [[1.0, 1.0, 1.0],
+         [1.0, 1.0, 0.5],
+         [1.0, 1.0, 1.0]],
+        [[1.0, 1.0, 1.0],
+         [1.0, 1.0, 0.5],
+         [1.0, 1.0, 1.0]],
+    ])
+
+    b_alloy, b_acid = generate_boundraries(alloy, acid)
+
+    log.write(alloy)
+    log.write(b_alloy)
+    log.write(acid)
+    log.write(b_acid)
+
+    alloy_correct = np.array_equal(b_alloy, np.array([
+        [[-2, -2, -2, -2, -2],
+         [-2, -2, -2, -2, -2],
+         [-2, -2, -2, -2, -2],
+         [-2, -2, -2, -2, -2],
+         [-2, -2, -2, -2, -2]],
+        [[-2, -2, -2, -2, -2],
+         [-2,  0,  1, -1, -2],
+         [-2, -1,  0, -1, -2],
+         [-2,  0,  1,  1, -2],
+         [-2, -2, -2, -2, -2]],
+        [[-2, -2, -2, -2, -2],
+         [-2,  0,  1, -1, -2],
+         [-2, -1,  0, -1, -2],
+         [-2,  0,  1,  1, -2],
+         [-2, -2, -2, -2, -2]],
+        [[-2, -2, -2, -2, -2],
+         [-2,  0,  1, -1, -2],
+         [-2, -1,  0, -1, -2],
+         [-2,  0,  1,  1, -2],
+         [-2, -2, -2, -2, -2]],
+        [[-2, -2, -2, -2, -2],
+         [-2, -2, -2, -2, -2],
+         [-2, -2, -2, -2, -2],
+         [-2, -2, -2, -2, -2],
+         [-2, -2, -2, -2, -2]],
+    ]))
+    acid_correct = np.allclose(b_acid, np.array([
+        [[1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0]],
+        [[1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 0.5, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0]],
+        [[1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 0.5, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0]],
+        [[1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 0.5, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0]],
+        [[1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0],
+         [1.0, 1.0, 1.0, 1.0, 1.0]],
+    ]))
+
+    return alloy_correct and acid_correct
