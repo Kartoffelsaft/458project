@@ -10,12 +10,13 @@ class Logger:
         print(self.output)
 
 def runTestsFor(dictinfo):
-    for name in dictinfo:
-        if name.startswith("test_") and callable(dictinfo[name]):
+    di = dictinfo.copy()
+    for name in di:
+        if name.startswith("test_") and callable(di[name]):
             logger = Logger();
             print(f"Running {name}...")
             try:
-                success = dictinfo[name](logger)
+                success = di[name](logger)
                 if not success:
                     print(f"\033[91m{name} FAILED\033[0m")
                     print(name + " log:")

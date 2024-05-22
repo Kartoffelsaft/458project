@@ -235,12 +235,20 @@ def test_dissolve_line(log):
     log.write(f"Dissolusion before: {dissolusion}")
     log.write(f"Dissolusion after: {n_dissolusion}")
 
+    # check everything is in range
+    values_in_range = (0 <= n_acid and n_acid <= 1 and 0 <= n_dissolusion and n_dissolusion <= 1).all()
+
     # there is 0.5 acid adjacent to this silver tile, dissolves relative to it
     silver_dissolving_correctly = np.isclose(n_dissolusion[1, 1, 2], DISSOLVE_RATE * 0.5)
 
-    # acid should lose the amount that reacted to the silver, but gain some
-    # amount from the outside (would theoretically lose some to diffusion too
-    # but all adjacent tiles either don't have space or have full acid content
-    acid_diffusing_correctly = np.isclose(n_acid[1, 1, 3], acid[1, 1, 3] - DISSOLVE_RATE*0.5 + ACID_DIFFUSION_RATE*1.0)
+    # acid should lose the amount that reacted to the silver and some that
+    # diffuses into the tile that was dissolved a bit, but gain some via
+    # diffusion from the outside
+    expected_acid = acid[1, 1, 3]
+    expected_acid -= DISSOLVE_RATE * expected_acid
+    expected_acid -= np.min(ACID_DIFFUSION_RATE * expected_acid, n_dissolusion[1, 1, 2])
+    expected_acid = np.max(expected_acid, 0)
+    expected_acid += ACID_DIFFUSION_RATE * 1.0
+    acid_diffusing_correctly = np.isclose(n_acid[1, 1, 3], expected_acid)
 
-    return silver_dissolving_correctly and acid_diffusing_correctly
+    return values_in_range and silver_dissolving_correctly and acid_diffusing_correctly
