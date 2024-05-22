@@ -3,6 +3,7 @@ from collections import deque  # Importing deque for efficient queue operations
 
 MATERIAL_SILVER = 0
 MATERIAL_GOLD = 1
+MATERIAL_DISSOLVED_SILVER = 2
 MATERIAL_IMPURITY = -1
 MATERIAL_EMPTY = -2
 
@@ -41,7 +42,8 @@ def simulate_nitric_acid_step(alloy, acid_content, dissolusion):
 
 def simulate_nitric_acid(alloy):
     # Function to simulate nitric acid dissolving silver in the alloy
-    shape = alloy.shape  # Get the shape of the alloy array
+    r_alloy = alloy.copy()
+    shape = r_alloy.shape  # Get the shape of the r_alloy array
     visited = np.zeros(shape, dtype=bool)  # Create an array to track visited positions
     queue = deque()  # Initialize a deque to store positions for BFS traversal
 
@@ -49,7 +51,7 @@ def simulate_nitric_acid(alloy):
     for x in range(shape[0]):  # Iterate over x-axis
         for y in range(shape[1]):  # Iterate over y-axis
             for z in range(shape[2]):  # Iterate over z-axis
-                if alloy[x, y, z] == MATERIAL_SILVER:  # If position contains silver (0)
+                if r_alloy[x, y, z] == MATERIAL_SILVER:  # If position contains silver (0)
                     if x == 0 or x == shape[0] - 1 or y == 0 or y == shape[1] - 1 or z == 0 or z == shape[2] - 1:
                         # Check if position is at the boundary
                         queue.append((x, y, z))  # Add boundary silver position to queue
@@ -60,19 +62,19 @@ def simulate_nitric_acid(alloy):
     while queue:  # Continue while queue is not empty
         x, y, z = queue.popleft()  # Get position from the front of the queue
 
-        if alloy[x, y, z] == MATERIAL_SILVER:  # If position contains silver
-            alloy[x, y, z] = 2  # Mark the silver as dissolved (2 represents dissolved silver)
+        if r_alloy[x, y, z] == MATERIAL_SILVER:  # If position contains silver
+            r_alloy[x, y, z] = MATERIAL_DISSOLVED_SILVER  # Mark the silver as dissolved
 
         for dx, dy, dz in directions:  # Iterate over possible directions
             nx, ny, nz = x + dx, y + dy, z + dz  # Calculate new position in the direction
             if 0 <= nx < shape[0] and 0 <= ny < shape[1] and 0 <= nz < shape[2]:
                 # Check if new position is within bounds
-                if not visited[nx, ny, nz] and alloy[nx, ny, nz] == MATERIAL_SILVER:
+                if not visited[nx, ny, nz] and r_alloy[nx, ny, nz] == MATERIAL_SILVER:
                     # Check if new position is unvisited and contains silver
                     visited[nx, ny, nz] = True  # Mark new position as visited
                     queue.append((nx, ny, nz))  # Add new position to queue for further processing
 
-    return alloy  # Return the alloy after simulation
+    return r_alloy  # Return the r_alloy after simulation
 
 if __name__ == "__main__":
     # Define the shape of the array
@@ -252,3 +254,67 @@ def test_dissolve_line(log):
     acid_diffusing_correctly = np.isclose(n_acid[1, 1, 3], expected_acid)
 
     return values_in_range and silver_dissolving_correctly and acid_diffusing_correctly
+
+def test_simple_dissolve(log):
+    alloy_before = np.array([
+        [[MATERIAL_SILVER, MATERIAL_GOLD  , MATERIAL_GOLD  ],
+         [MATERIAL_GOLD  , MATERIAL_GOLD  , MATERIAL_GOLD  ],
+         [MATERIAL_SILVER, MATERIAL_SILVER, MATERIAL_SILVER]],
+
+        [[MATERIAL_GOLD  , MATERIAL_GOLD  , MATERIAL_GOLD  ],
+         [MATERIAL_GOLD  , MATERIAL_SILVER, MATERIAL_GOLD  ],
+         [MATERIAL_SILVER, MATERIAL_GOLD  , MATERIAL_SILVER]],
+
+        [[MATERIAL_GOLD  , MATERIAL_SILVER, MATERIAL_GOLD  ],
+         [MATERIAL_GOLD  , MATERIAL_GOLD  , MATERIAL_GOLD  ],
+         [MATERIAL_GOLD  , MATERIAL_GOLD  , MATERIAL_SILVER]],
+    ])
+
+    alloy_after = simulate_nitric_acid(alloy_before)
+
+    log.write(alloy_before)
+    log.write(alloy_after)
+
+    return np.array_equal(alloy_after, np.array([
+        [[MATERIAL_DISSOLVED_SILVER, MATERIAL_GOLD            , MATERIAL_GOLD            ],
+         [MATERIAL_GOLD            , MATERIAL_GOLD            , MATERIAL_GOLD            ],
+         [MATERIAL_DISSOLVED_SILVER, MATERIAL_DISSOLVED_SILVER, MATERIAL_DISSOLVED_SILVER]],
+
+        [[MATERIAL_GOLD            , MATERIAL_GOLD            , MATERIAL_GOLD            ],
+         [MATERIAL_GOLD            , MATERIAL_SILVER          , MATERIAL_GOLD            ],
+         [MATERIAL_DISSOLVED_SILVER, MATERIAL_GOLD            , MATERIAL_DISSOLVED_SILVER]],
+
+        [[MATERIAL_GOLD            , MATERIAL_DISSOLVED_SILVER, MATERIAL_GOLD            ],
+         [MATERIAL_GOLD            , MATERIAL_GOLD            , MATERIAL_GOLD            ],
+         [MATERIAL_GOLD            , MATERIAL_GOLD            , MATERIAL_DISSOLVED_SILVER]],
+    ]))
+
+def test_simple_dissolve_impurity_untouched(log):
+    alloy_before = np.full((4, 4, 4), MATERIAL_IMPURITY)
+    alloy_after = simulate_nitric_acid(alloy_before)
+
+    log.write(alloy_before)
+    log.write(alloy_after)
+
+    return (alloy_after == MATERIAL_IMPURITY).all()
+
+def test_simple_dissolve_encased_silver(log):
+    alloy_before, _, _ = create_alloy_array((3, 3, 3), 0.5, 0.0, 0.5)
+    alloy_before[1, 1, 1] = MATERIAL_SILVER
+
+    alloy_after = simulate_nitric_acid(alloy_before)
+
+    log.write(alloy_before)
+    log.write(alloy_after)
+
+    return alloy_after[1, 1, 1] == MATERIAL_SILVER
+
+def test_simple_dissolve_full_silver(log):
+    alloy_before = np.full((4, 4, 4), MATERIAL_SILVER)
+    alloy_after = simulate_nitric_acid(alloy_before)
+
+    log.write(alloy_before)
+    log.write(alloy_after)
+
+    return (alloy_before == MATERIAL_SILVER).all() and (alloy_after == MATERIAL_DISSOLVED_SILVER).all()
+    
