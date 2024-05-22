@@ -6,6 +6,9 @@ MATERIAL_GOLD = 1
 MATERIAL_IMPURITY = -1
 MATERIAL_EMPTY = -2
 
+DISSOLVE_RATE = 0.3
+ACID_DIFFUSION_RATE = 0.7
+
 def create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio=0.01):
     # Function to create the initial alloy mixture based on specified ratios
     if not np.isclose(gold_ratio + silver_ratio + impurity_ratio, 1.0):  # Check if ratios sum to 1
@@ -33,6 +36,8 @@ def generate_boundraries(alloy, acid_content):
 
     return b_alloy, b_acid
 
+def simulate_nitric_acid_step(alloy, acid_content, dissolusion):
+    return np.array([]), np.array([]), np.array([]) # TODO
 
 def simulate_nitric_acid(alloy):
     # Function to simulate nitric acid dissolving silver in the alloy
@@ -80,7 +85,7 @@ if __name__ == "__main__":
     # Test different ratios
     for gold_ratio in gold_ratios:  # Loop through each gold ratio
         silver_ratio = 1 - gold_ratio - impurity_ratio  # Calculate silver ratio based on gold and impurity
-        alloy_mixture, dissolusion, acid_content = create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio)  # Create alloy mixture
+        alloy_mixture, acid_content, dissolusion = create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio)  # Create alloy mixture
         dissolved_alloy = simulate_nitric_acid(alloy_mixture.copy())  # Simulate nitric acid dissolution
         
         # Print initial and dissolved alloy mixtures for each ratio
@@ -199,3 +204,43 @@ def test_generate_boundraries(log):
     ]))
 
     return alloy_correct and acid_correct
+
+def test_dissolve_line(log):
+    # Situation where we have an ingot like:
+    #
+    # IIII
+    # ISSE
+    # IIII
+    #
+    # and acid is starting to get in (via right side in illustration). This 
+    # tests whether the rightmost silver starts to dissolve appropriately, and
+    # whether the empty tile starts to get filled with acid from outside.
+
+    alloy = np.full((3, 3, 4), MATERIAL_IMPURITY)
+    alloy[1, 1, 1:3] = MATERIAL_SILVER
+    alloy[1, 1, 3] = MATERIAL_EMPTY
+
+    acid = np.zeros((3, 3, 4))
+    acid[1, 1, 3] = 0.5
+
+    dissolusion = np.zeros((3, 3, 4))
+    dissolusion[1, 1, 3] = 1.0
+
+    n_alloy, n_acid, n_dissolusion = simulate_nitric_acid_step(alloy, acid, dissolusion)
+
+    log.write(f"Alloy before: {alloy}")
+    log.write(f"Alloy after: {n_alloy}")
+    log.write(f"Acid before: {acid}")
+    log.write(f"Acid after: {n_acid}")
+    log.write(f"Dissolusion before: {dissolusion}")
+    log.write(f"Dissolusion after: {n_dissolusion}")
+
+    # there is 0.5 acid adjacent to this silver tile, dissolves relative to it
+    silver_dissolving_correctly = np.isclose(n_dissolusion[1, 1, 2], DISSOLVE_RATE * 0.5)
+
+    # acid should lose the amount that reacted to the silver, but gain some
+    # amount from the outside (would theoretically lose some to diffusion too
+    # but all adjacent tiles either don't have space or have full acid content
+    acid_diffusing_correctly = np.isclose(n_acid[1, 1, 3], acid[1, 1, 3] - DISSOLVE_RATE*0.5 + ACID_DIFFUSION_RATE*1.0)
+
+    return silver_dissolving_correctly and acid_diffusing_correctly
