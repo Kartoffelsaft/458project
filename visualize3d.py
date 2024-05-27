@@ -3,7 +3,8 @@ import matplotlib.pyplot as plt
 import matplotlib.widgets as widget
 import numpy as np
 
-alloy, _, _ = inquarting.create_alloy_array((20, 20, 20), 0.50, 0.45, 0.05)
+#alloy = inquarting.create_alloy_array((20, 20, 20), 0.50, 0.45, 0.05)
+alloy = inquarting.create_alloy_array_perlin((32, 32, 32), 0.8, 0.19, 4)
 processed = inquarting.simulate_nitric_acid(alloy)
 
 voxels = np.zeros(processed.shape + (3,))

@@ -1,18 +1,27 @@
-import numpy as np
-from collections import deque
+import numpy as np  # Importing NumPy for array operations
+from perlin_numpy import generate_fractal_noise_3d
+from collections import deque  # Importing deque for efficient queue operations
 import matplotlib.pyplot as plt
+
+MATERIAL_SILVER = 0
+MATERIAL_GOLD = 1
+MATERIAL_DISSOLVED_SILVER = 2
+MATERIAL_IMPURITY = -1
 
 def create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio=0.01):
     if not np.isclose(gold_ratio + silver_ratio + impurity_ratio, 1.0):
         raise ValueError("The sum of the ratios must be 1.0.")
-    total_elements = np.prod(shape)
-    num_gold = int(total_elements * gold_ratio)
-    num_silver = int(total_elements * silver_ratio)
-    num_impurity = total_elements - num_gold - num_silver
-    elements = np.array([1] * num_gold + [0] * num_silver + [-1] * num_impurity)
-    np.random.shuffle(elements)
-    alloy_mixture = elements.reshape(shape)
-    return alloy_mixture
+    total_elements = np.prod(shape)  # Calculate total number of elements in the array
+
+    num_gold = int(total_elements * gold_ratio)  # Calculate number of gold elements based on ratio
+    num_silver = int(total_elements * silver_ratio)  # Calculate number of silver elements based on ratio
+    num_impurity = total_elements - num_gold - num_silver  # Calculate number of impurity elements
+    elements = np.array([MATERIAL_GOLD] * num_gold + [MATERIAL_SILVER] * num_silver + [MATERIAL_IMPURITY] * num_impurity)  # Create array with correct proportions
+    np.random.shuffle(elements)  # Shuffle the array to randomize positions of elements
+
+    alloy_mixture = elements.reshape(shape)  # Reshape the array to the desired shape
+
+    return alloy_mixture # Return the created alloy mixture
 
 def create_half_mixed_alloy(shape, gold_ratio, silver_ratio, impurity_ratio=0.01):
     if not np.isclose(gold_ratio + silver_ratio + impurity_ratio, 1.0):
@@ -36,6 +45,27 @@ def create_half_mixed_alloy(shape, gold_ratio, silver_ratio, impurity_ratio=0.01
     
     alloy_mixture = elements.reshape(shape)
     return alloy_mixture
+
+def create_alloy_array_perlin(shape, gold_ratio, silver_ratio, clump_size, octaves=1):
+    clump_period = (int(shape[0] / clump_size), int(shape[1] / clump_size), int(shape[2] / clump_size))
+    def gen_clump_positions(threshold):
+        if threshold >= 1.0:
+            return np.ones(shape)
+        elif threshold <= 0:
+            return np.zeros(shape)
+        values = generate_fractal_noise_3d(shape, clump_period, octaves)
+        value_threshold = np.sort(values.flatten())[int(threshold * values.size)]
+        return values < value_threshold
+
+    alloy = np.full(shape, MATERIAL_IMPURITY)
+    alloy = np.where(gen_clump_positions(gold_ratio), MATERIAL_GOLD, alloy)
+    if gold_ratio == 1:
+        return alloy
+
+    silver_threshold = silver_ratio / (1.0 - gold_ratio)
+    alloy = np.where(np.logical_and(alloy != MATERIAL_GOLD, gen_clump_positions(silver_threshold)), MATERIAL_SILVER, alloy)
+
+    return alloy
 
 def simulate_nitric_acid(alloy):
     shape = alloy.shape
@@ -163,7 +193,7 @@ if __name__ == "__main__":
 ########### Tests
 
 def test_alloy_generation_accurate_probs(log):
-    alloy, _, _ = create_alloy_array((50, 50, 50), 0.6, 0.35, 0.05)
+    alloy = create_alloy_array((50, 50, 50), 0.6, 0.35, 0.05)
     log.write(alloy)
 
     portion_gold     = np.sum(alloy == MATERIAL_GOLD    ) / alloy.size
@@ -178,141 +208,41 @@ def test_alloy_generation_accurate_probs(log):
        and np.isclose(portion_silver, 0.35, atol=0.05) \
        and np.isclose(portion_impurity, 0.05, atol=0.02)
 
-def test_generate_boundraries(log):
-    alloy = np.array([
-        [[ 0, 1, -1],
-         [-1, 0, -1],
-         [ 0, 1,  1]],
-        [[ 0, 1, -1],
-         [-1, 0, -1],
-         [ 0, 1,  1]],
-        [[ 0, 1, -1],
-         [-1, 0, -1],
-         [ 0, 1,  1]],
-    ])
-    acid = np.array([
-        [[1.0, 1.0, 1.0],
-         [1.0, 1.0, 0.5],
-         [1.0, 1.0, 1.0]],
-        [[1.0, 1.0, 1.0],
-         [1.0, 1.0, 0.5],
-         [1.0, 1.0, 1.0]],
-        [[1.0, 1.0, 1.0],
-         [1.0, 1.0, 0.5],
-         [1.0, 1.0, 1.0]],
-    ])
-
-    b_alloy, b_acid = generate_boundraries(alloy, acid)
-
+def test_alloy_generation_perlin_accurate_probs(log):
+    alloy = create_alloy_array_perlin((64, 64, 64), 0.6, 0.35, 4)
     log.write(alloy)
-    log.write(b_alloy)
-    log.write(acid)
-    log.write(b_acid)
 
-    alloy_correct = np.array_equal(b_alloy, np.array([
-        [[-2, -2, -2, -2, -2],
-         [-2, -2, -2, -2, -2],
-         [-2, -2, -2, -2, -2],
-         [-2, -2, -2, -2, -2],
-         [-2, -2, -2, -2, -2]],
-        [[-2, -2, -2, -2, -2],
-         [-2,  0,  1, -1, -2],
-         [-2, -1,  0, -1, -2],
-         [-2,  0,  1,  1, -2],
-         [-2, -2, -2, -2, -2]],
-        [[-2, -2, -2, -2, -2],
-         [-2,  0,  1, -1, -2],
-         [-2, -1,  0, -1, -2],
-         [-2,  0,  1,  1, -2],
-         [-2, -2, -2, -2, -2]],
-        [[-2, -2, -2, -2, -2],
-         [-2,  0,  1, -1, -2],
-         [-2, -1,  0, -1, -2],
-         [-2,  0,  1,  1, -2],
-         [-2, -2, -2, -2, -2]],
-        [[-2, -2, -2, -2, -2],
-         [-2, -2, -2, -2, -2],
-         [-2, -2, -2, -2, -2],
-         [-2, -2, -2, -2, -2],
-         [-2, -2, -2, -2, -2]],
-    ]))
-    acid_correct = np.allclose(b_acid, np.array([
-        [[1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0]],
-        [[1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 0.5, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0]],
-        [[1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 0.5, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0]],
-        [[1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 0.5, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0]],
-        [[1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0],
-         [1.0, 1.0, 1.0, 1.0, 1.0]],
-    ]))
+    portion_gold     = np.sum(alloy == MATERIAL_GOLD    ) / alloy.size
+    portion_silver   = np.sum(alloy == MATERIAL_SILVER  ) / alloy.size
+    portion_impurity = np.sum(alloy == MATERIAL_IMPURITY) / alloy.size
 
-    return alloy_correct and acid_correct
+    log.write(f"gold actual: {portion_gold} | expected: {0.6}")
+    log.write(f"silver actual: {portion_silver} | expected: {0.6}")
+    log.write(f"impurity actual: {portion_impurity} | expected: {0.6}")
 
-def test_dissolve_line(log):
-    # Situation where we have an ingot like:
-    #
-    # IIII
-    # ISSE
-    # IIII
-    #
-    # and acid is starting to get in (via right side in illustration). This 
-    # tests whether the rightmost silver starts to dissolve appropriately, and
-    # whether the empty tile starts to get filled with acid from outside.
+    return np.isclose(portion_gold, 0.6, atol=0.05) \
+       and np.isclose(portion_silver, 0.35, atol=0.05) \
+       and np.isclose(portion_impurity, 0.05, atol=0.02)
 
-    alloy = np.full((3, 3, 4), MATERIAL_IMPURITY)
-    alloy[1, 1, 1:3] = MATERIAL_SILVER
-    alloy[1, 1, 3] = MATERIAL_EMPTY
+def test_alloy_generation_perlin_pure_gold(log):
+    alloy = create_alloy_array_perlin((64, 64, 64), 1.0, 0.0, 4)
+    log.write(alloy)
 
-    acid = np.zeros((3, 3, 4))
-    acid[1, 1, 3] = 0.5
+    log.write(f"Total gold:     {np.sum(alloy == MATERIAL_GOLD    )}")
+    log.write(f"Total silver:   {np.sum(alloy == MATERIAL_SILVER  )}")
+    log.write(f"Total impurity: {np.sum(alloy == MATERIAL_IMPURITY)}")
 
-    dissolusion = np.zeros((3, 3, 4))
-    dissolusion[1, 1, 3] = 1.0
+    return (alloy == MATERIAL_GOLD).all()
 
-    n_alloy, n_acid, n_dissolusion = simulate_nitric_acid_step(alloy, acid, dissolusion)
+def test_alloy_generation_perlin_pure_impurity(log):
+    alloy = create_alloy_array_perlin((64, 64, 64), 0.0, 0.0, 4)
+    log.write(alloy)
 
-    log.write(f"Alloy before: {alloy}")
-    log.write(f"Alloy after: {n_alloy}")
-    log.write(f"Acid before: {acid}")
-    log.write(f"Acid after: {n_acid}")
-    log.write(f"Dissolusion before: {dissolusion}")
-    log.write(f"Dissolusion after: {n_dissolusion}")
+    log.write(f"Total gold:     {np.sum(alloy == MATERIAL_GOLD    )}")
+    log.write(f"Total silver:   {np.sum(alloy == MATERIAL_SILVER  )}")
+    log.write(f"Total impurity: {np.sum(alloy == MATERIAL_IMPURITY)}")
 
-    # check everything is in range
-    values_in_range = (0 <= n_acid and n_acid <= 1 and 0 <= n_dissolusion and n_dissolusion <= 1).all()
-
-    # there is 0.5 acid adjacent to this silver tile, dissolves relative to it
-    silver_dissolving_correctly = np.isclose(n_dissolusion[1, 1, 2], DISSOLVE_RATE * 0.5)
-
-    # acid should lose the amount that reacted to the silver and some that
-    # diffuses into the tile that was dissolved a bit, but gain some via
-    # diffusion from the outside
-    expected_acid = acid[1, 1, 3]
-    expected_acid -= DISSOLVE_RATE * expected_acid
-    expected_acid -= np.min(ACID_DIFFUSION_RATE * expected_acid, n_dissolusion[1, 1, 2])
-    expected_acid = np.max(expected_acid, 0)
-    expected_acid += ACID_DIFFUSION_RATE * 1.0
-    acid_diffusing_correctly = np.isclose(n_acid[1, 1, 3], expected_acid)
-
-    return values_in_range and silver_dissolving_correctly and acid_diffusing_correctly
+    return (alloy == MATERIAL_IMPURITY).all()
 
 def test_simple_dissolve(log):
     alloy_before = np.array([
@@ -357,8 +287,18 @@ def test_simple_dissolve_impurity_untouched(log):
 
     return (alloy_after == MATERIAL_IMPURITY).all()
 
+def test_simple_dissolve_impurity_constant(log):
+    alloy_before = create_alloy_array((10, 10, 10), 0.33, 0.33, 0.34)
+    alloy_after = simulate_nitric_acid(alloy_before)
+
+    log.write(alloy_before)
+    log.write(alloy_after)
+
+    return np.array_equal((alloy_before == MATERIAL_IMPURITY), (alloy_after == MATERIAL_IMPURITY))
+
+
 def test_simple_dissolve_encased_silver(log):
-    alloy_before, _, _ = create_alloy_array((3, 3, 3), 0.5, 0.0, 0.5)
+    alloy_before = create_alloy_array((3, 3, 3), 0.5, 0.0, 0.5)
     alloy_before[1, 1, 1] = MATERIAL_SILVER
 
     alloy_after = simulate_nitric_acid(alloy_before)
