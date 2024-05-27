@@ -1,103 +1,160 @@
-import numpy as np  # Importing NumPy for array operations
-from collections import deque  # Importing deque for efficient queue operations
-
-MATERIAL_SILVER = 0
-MATERIAL_GOLD = 1
-MATERIAL_DISSOLVED_SILVER = 2
-MATERIAL_IMPURITY = -1
-MATERIAL_EMPTY = -2
-
-DISSOLVE_RATE = 0.3
-ACID_DIFFUSION_RATE = 0.7
+import numpy as np
+from collections import deque
+import matplotlib.pyplot as plt
 
 def create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio=0.01):
-    # Function to create the initial alloy mixture based on specified ratios
-    if not np.isclose(gold_ratio + silver_ratio + impurity_ratio, 1.0):  # Check if ratios sum to 1
-        raise ValueError("The sum of the ratios must be 1.")  # Raise an error if ratios are invalid
+    if not np.isclose(gold_ratio + silver_ratio + impurity_ratio, 1.0):
+        raise ValueError("The sum of the ratios must be 1.0.")
+    total_elements = np.prod(shape)
+    num_gold = int(total_elements * gold_ratio)
+    num_silver = int(total_elements * silver_ratio)
+    num_impurity = total_elements - num_gold - num_silver
+    elements = np.array([1] * num_gold + [0] * num_silver + [-1] * num_impurity)
+    np.random.shuffle(elements)
+    alloy_mixture = elements.reshape(shape)
+    return alloy_mixture
 
-    total_elements = np.prod(shape)  # Calculate total number of elements in the array
-
-    num_gold = int(total_elements * gold_ratio)  # Calculate number of gold elements based on ratio
-    num_silver = int(total_elements * silver_ratio)  # Calculate number of silver elements based on ratio
-    num_impurity = total_elements - num_gold - num_silver  # Calculate number of impurity elements
-    elements = np.array([MATERIAL_GOLD] * num_gold + [MATERIAL_SILVER] * num_silver + [MATERIAL_IMPURITY] * num_impurity)  # Create array with correct proportions
-    np.random.shuffle(elements)  # Shuffle the array to randomize positions of elements
-
-    alloy_mixture = elements.reshape(shape)  # Reshape the array to the desired shape
-
-    return alloy_mixture, np.zeros(shape), np.zeros(shape)  # Return the created alloy mixture
-
-def generate_boundraries(alloy, acid_content):
-    if alloy.shape != acid_content.shape:
-        raise ValueError("simulation variables should be the same shape")
-    b_alloy = np.full([d+2 for d in alloy.shape], MATERIAL_EMPTY)
-    b_alloy[1:-1, 1:-1, 1:-1] = alloy
-    b_acid = np.ones([d+2 for d in acid_content.shape])
-    b_acid[1:-1, 1:-1, 1:-1] = acid_content
-
-    return b_alloy, b_acid
-
-def simulate_nitric_acid_step(alloy, acid_content, dissolusion):
-    return np.array([]), np.array([]), np.array([]) # TODO
+def create_half_mixed_alloy(shape, gold_ratio, silver_ratio, impurity_ratio=0.01):
+    if not np.isclose(gold_ratio + silver_ratio + impurity_ratio, 1.0):
+        raise ValueError("The sum of the ratios must be 1.0.")
+    
+    total_elements = np.prod(shape)
+    num_gold = int(total_elements * gold_ratio)
+    num_silver = int(total_elements * silver_ratio)
+    num_impurity = total_elements - num_gold - num_silver
+    
+    elements = np.array([1] * num_gold + [0] * num_silver + [-1] * num_impurity)
+    
+    # Divide the alloy into two halves
+    half_elements = total_elements // 2
+    
+    # Fully mix one half
+    np.random.shuffle(elements[:half_elements])
+    
+    # Leave the other half unmixed
+    # (The elements are already in the correct proportion, so we don't need to do anything)
+    
+    alloy_mixture = elements.reshape(shape)
+    return alloy_mixture
 
 def simulate_nitric_acid(alloy):
-    # Function to simulate nitric acid dissolving silver in the alloy
-    r_alloy = alloy.copy()
-    shape = r_alloy.shape  # Get the shape of the r_alloy array
-    visited = np.zeros(shape, dtype=bool)  # Create an array to track visited positions
-    queue = deque()  # Initialize a deque to store positions for BFS traversal
+    shape = alloy.shape
+    visited = np.zeros(shape, dtype=bool)
+    queue = deque()
 
-    # Initialize the queue with boundary silver positions
-    for x in range(shape[0]):  # Iterate over x-axis
-        for y in range(shape[1]):  # Iterate over y-axis
-            for z in range(shape[2]):  # Iterate over z-axis
-                if r_alloy[x, y, z] == MATERIAL_SILVER:  # If position contains silver (0)
+    for x in range(shape[0]):
+        for y in range(shape[1]):
+            for z in range(shape[2]):
+                if alloy[x, y, z] == 0:
                     if x == 0 or x == shape[0] - 1 or y == 0 or y == shape[1] - 1 or z == 0 or z == shape[2] - 1:
-                        # Check if position is at the boundary
-                        queue.append((x, y, z))  # Add boundary silver position to queue
-                        visited[x, y, z] = True  # Mark position as visited
+                        queue.append((x, y, z))
+                        visited[x, y, z] = True
 
-    directions = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1)]  # Define possible directions for movement
+    directions = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1)]
 
-    while queue:  # Continue while queue is not empty
-        x, y, z = queue.popleft()  # Get position from the front of the queue
-
-        if r_alloy[x, y, z] == MATERIAL_SILVER:  # If position contains silver
-            r_alloy[x, y, z] = MATERIAL_DISSOLVED_SILVER  # Mark the silver as dissolved
-
-        for dx, dy, dz in directions:  # Iterate over possible directions
-            nx, ny, nz = x + dx, y + dy, z + dz  # Calculate new position in the direction
+    while queue:
+        x, y, z = queue.popleft()
+        if alloy[x, y, z] == 0:
+            alloy[x, y, z] = 2
+        for dx, dy, dz in directions:
+            nx, ny, nz = x + dx, y + dy, z + dz
             if 0 <= nx < shape[0] and 0 <= ny < shape[1] and 0 <= nz < shape[2]:
-                # Check if new position is within bounds
-                if not visited[nx, ny, nz] and r_alloy[nx, ny, nz] == MATERIAL_SILVER:
-                    # Check if new position is unvisited and contains silver
-                    visited[nx, ny, nz] = True  # Mark new position as visited
-                    queue.append((nx, ny, nz))  # Add new position to queue for further processing
+                if not visited[nx, ny, nz] and alloy[nx, ny, nz] == 0:
+                    visited[nx, ny, nz] = True
+                    queue.append((nx, ny, nz))
+    return alloy
 
-    return r_alloy  # Return the r_alloy after simulation
+sizes = [(5, 5, 5), (10, 10, 10), (15, 15, 15), (20, 20, 20)]
+gold_ratios = [0.1, 0.25, 0.4, 0.5, 0.6, 0.7, 0.8]
+impurity_ratio = 0.01
+num_simulations = 10
 
-if __name__ == "__main__":
-    # Define the shape of the array
-    shape = (20, 20, 20)
+purity_results = {size: {gold_ratio: [] for gold_ratio in gold_ratios} for size in sizes}
+purity_results_half_mixed = {gold_ratio: [] for gold_ratio in gold_ratios}
 
-    # Define the gold ratios to test, keeping 1% impurity and adjusting silver
-    gold_ratios = [0.10, 0.25, 0.50, 0.75, 0.90]
-    impurity_ratio = 0.01  # Impurity ratio is fixed at 1%
+for size in sizes:
+    for gold_ratio in gold_ratios:
+        for _ in range(num_simulations):
+            alloy_mixture = create_alloy_array(size, gold_ratio, 1 - gold_ratio - impurity_ratio, impurity_ratio)
+            dissolved_alloy = simulate_nitric_acid(alloy_mixture.copy())
+            num_gold = np.count_nonzero(dissolved_alloy == 1)
+            num_silver_dissolved = np.count_nonzero(dissolved_alloy == 2)
+            num_silver = np.count_nonzero(alloy_mixture == 0)
+            num_remaining = num_gold + num_silver - num_silver_dissolved
+            final_purity = num_gold / num_remaining
+            purity_results[size][gold_ratio].append((num_gold, num_remaining, final_purity))
 
-    # Test different ratios
-    for gold_ratio in gold_ratios:  # Loop through each gold ratio
-        silver_ratio = 1 - gold_ratio - impurity_ratio  # Calculate silver ratio based on gold and impurity
-        alloy_mixture, acid_content, dissolusion = create_alloy_array(shape, gold_ratio, silver_ratio, impurity_ratio)  # Create alloy mixture
-        dissolved_alloy = simulate_nitric_acid(alloy_mixture.copy())  # Simulate nitric acid dissolution
-        
-        # Print initial and dissolved alloy mixtures for each ratio
-        print(f"Initial Alloy Mixture (1 for Gold, 0 for Silver, -1 for Impurity) with ratios {gold_ratio}, {silver_ratio}, {impurity_ratio}:")
-        print(alloy_mixture)
-        print()
-        
-        print(f"Dissolved Alloy Mixture (1 for Gold, 2 for Dissolved Silver, -1 for Impurity) with ratios {gold_ratio}, {silver_ratio}, {impurity_ratio}:")
-        print(dissolved_alloy)
-        print()  # Add a newline for readability between different ratio outputs
+# Calculate and print the average purity for the alloys at each gold concentration
+for size in sizes:
+    print(f"Average purity for the {size} alloy at each gold concentration:")
+    for gold_ratio in gold_ratios:
+        avg_num_gold = np.mean([result[0] for result in purity_results[size][gold_ratio]])
+        avg_num_remaining = np.mean([result[1] for result in purity_results[size][gold_ratio]])
+        avg_final_purity = np.mean([result[2] for result in purity_results[size][gold_ratio]])
+        print(f"Gold ratio {gold_ratio:.2f}: Average final purity {avg_final_purity:.4f} (Gold: {avg_num_gold:.2f}, Total Remaining: {avg_num_remaining:.2f})")
+    print()
+
+# Perform the analysis for the 10x10x10 alloy with half-mixed alloy at each gold concentration
+for gold_ratio in gold_ratios:
+    for _ in range(num_simulations):
+        alloy_mixture = create_half_mixed_alloy((10, 10, 10), gold_ratio, 1 - gold_ratio - impurity_ratio, impurity_ratio)
+        dissolved_alloy = simulate_nitric_acid(alloy_mixture.copy())
+        num_gold = np.count_nonzero(dissolved_alloy == 1)
+        num_silver_dissolved = np.count_nonzero(dissolved_alloy == 2)
+        num_silver = np.count_nonzero(alloy_mixture == 0)
+        num_remaining = num_gold + num_silver - num_silver_dissolved
+        final_purity = num_gold / num_remaining
+        purity_results_half_mixed[gold_ratio].append((num_gold, num_remaining, final_purity))
+
+# Calculate and print the average purity for the 20x20x20 alloy with half-mixed alloy at each gold concentration
+print(f"Average purity for the 10x10x10 alloy with half-mixed alloy at each gold concentration:")
+for gold_ratio in gold_ratios:
+    avg_num_gold = np.mean([result[0] for result in purity_results_half_mixed[gold_ratio]])
+    avg_num_remaining = np.mean([result[1] for result in purity_results_half_mixed[gold_ratio]])
+    avg_final_purity = np.mean([result[2] for result in purity_results_half_mixed[gold_ratio]])
+    print(f"Gold ratio {gold_ratio:.2f}: Average final purity {avg_final_purity:.4f} (Gold: {avg_num_gold:.2f}, Total Remaining: {avg_num_remaining:.2f})")
+
+# Function to plot purity vs starting gold concentration for a given size
+def plot_purity_vs_gold_concentration(ax, size, gold_ratios, purity_results):
+    gold_concentrations = []
+    final_purities = []
+    for gold_ratio in gold_ratios:
+        avg_final_purity = np.mean([result[2] for result in purity_results[size][gold_ratio]])
+        gold_concentrations.append(gold_ratio)
+        final_purities.append(avg_final_purity)
+    bars = ax.bar(gold_concentrations, final_purities, width=0.05)
+    ax.set_xlabel('Starting Gold Concentration')
+    ax.set_ylabel('Final Purity (Average)')
+    ax.set_title(f'Final Purity vs Starting Gold Concentration\nfor {size} Alloy')
+    ax.grid(True)
+    for bar in bars:
+        yval = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2.0, yval, f'{yval:.4f}', ha='center', va='bottom')
+
+# Create subplots for each size
+fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+axes = axes.flatten()
+
+for ax, size in zip(axes, sizes):
+    plot_purity_vs_gold_concentration(ax, size, gold_ratios, purity_results)
+
+plt.tight_layout()
+plt.show()
+
+# Plot purity vs starting gold concentration for the 10x10x10 half-mixed alloy
+fig, ax = plt.subplots(figsize=(7, 6))
+gold_concentrations = []
+final_purities = []
+for gold_ratio in gold_ratios:
+    avg_final_purity = np.mean([result[2] for result in purity_results_half_mixed[gold_ratio]])
+    gold_concentrations.append(gold_ratio)
+    final_purities.append(avg_final_purity)
+bars = ax.bar(gold_concentrations, final_purities, width=0.05)
+ax.set_xlabel('Starting Gold Concentration')
+ax.set_ylabel('Final Purity')
+
+plt.show()
+
 
 
 
