@@ -27,7 +27,7 @@ ax = fig.add_axes((0, 0.2, 1.0, 0.8), projection='3d')
 def update(amount):
     mask = np.zeros(processed.shape, dtype='bool')
     mask[0:amount,:,:] = True
-    filled = np.logical_and(processed != inquarting.MATERIAL_DISSOLVED_SILVER, processed != inquarting.MATERIAL_EMPTY)
+    filled = processed != inquarting.MATERIAL_DISSOLVED_SILVER
     filled = np.logical_and(filled, mask)
     ax.clear()
     ax.voxels(filled, facecolors=voxels)
